@@ -18,6 +18,7 @@ from .core.wind_resource import WindResource
 from .core.wake import WakeModel
 from .constraints.boundary import SiteBoundary
 from .farm.aep import AEPCalculator, FarmResult
+from .constraints.feasibility import LayoutInfeasibleError
 from .optimization.baseline import generate_grid_layout
 from .optimization.ga import GeneticAlgorithm, GAConfig
 from .optimization.pso import ParticleSwarmOptimizer, PSOConfig
@@ -796,6 +797,22 @@ def main() -> int:
             save=True,
         )
         return 0
+    except LayoutInfeasibleError as e:
+        # 确定性无解或预算内无法生成合法布局：清晰报告，不打印堆栈
+        print(f"\n{e}", file=sys.stderr)
+        rated_kw = (
+            config.create_turbines()[0].rated_power if config.n_turbines > 0 else 0.0
+        )
+        if rated_kw:
+            print(
+                f"  请求装机容量约: {config.n_turbines * rated_kw / 1e3:.1f} MW",
+                file=sys.stderr,
+            )
+        print(
+            "\n请减少风机台数、放大场地或放宽最小间距倍数后重试。",
+            file=sys.stderr,
+        )
+        return 1
     except Exception as e:
         print(f"\n错误: {e}", file=sys.stderr)
         import traceback

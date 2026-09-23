@@ -1,0 +1,199 @@
+{
+  "config": {
+    "n_turbines": 9,
+    "turbine_model": "V126-3.45MW",
+    "wake_model": "jensen",
+    "min_spacing_multiple": 5.0
+  },
+  "site": {
+    "area_km2": 4.84,
+    "mean_wind_speed": 6.842500000000001
+  },
+  "baseline": {
+    "positions": [
+      [
+        -785.0,
+        -785.0
+      ],
+      [
+        0.0,
+        -785.0
+      ],
+      [
+        785.0,
+        -785.0
+      ],
+      [
+        -785.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0
+      ],
+      [
+        785.0,
+        0.0
+      ],
+      [
+        -785.0,
+        785.0
+      ],
+      [
+        0.0,
+        785.0
+      ],
+      [
+        785.0,
+        785.0
+      ]
+    ],
+    "gross_aep_gwh": 60.489678688387286,
+    "net_aep_gwh": 51.40522978401854,
+    "wake_loss_pct": 15.01818012816254,
+    "capacity_factor": 18.89912050236345,
+    "turbine_losses": [
+      {
+        "idx": 0,
+        "wake_loss_pct": 0.4994191460245591,
+        "dominant_source": 4
+      },
+      {
+        "idx": 1,
+        "wake_loss_pct": 16.895452644182857,
+        "dominant_source": 3
+      },
+      {
+        "idx": 2,
+        "wake_loss_pct": 16.3960334981583,
+        "dominant_source": 4
+      },
+      {
+        "idx": 3,
+        "wake_loss_pct": 0.9988382920491047,
+        "dominant_source": 1
+      },
+      {
+        "idx": 4,
+        "wake_loss_pct": 33.79090528836573,
+        "dominant_source": 0
+      },
+      {
+        "idx": 5,
+        "wake_loss_pct": 32.79206699631661,
+        "dominant_source": 1
+      },
+      {
+        "idx": 6,
+        "wake_loss_pct": 0.4994191460245591,
+        "dominant_source": 2
+      },
+      {
+        "idx": 7,
+        "wake_loss_pct": 16.89545264418287,
+        "dominant_source": 3
+      },
+      {
+        "idx": 8,
+        "wake_loss_pct": 16.3960334981583,
+        "dominant_source": 0
+      }
+    ]
+  },
+  "optimized": {
+    "positions": [
+      [
+        224.77379977405383,
+        -528.0700256163963
+      ],
+      [
+        977.662275481022,
+        22.351420557356573
+      ],
+      [
+        -1099.792744005771,
+        1094.7607705658897
+      ],
+      [
+        918.0084961961147,
+        1100.0
+      ],
+      [
+        -1100.0,
+        198.78840020074227
+      ],
+      [
+        -556.3989964639654,
+        775.9767752913011
+      ],
+      [
+        -265.6576309467203,
+        217.07655186326863
+      ],
+      [
+        351.20957285329155,
+        89.1122779585787
+      ],
+      [
+        489.55203690497245,
+        -1099.7276904634014
+      ]
+    ],
+    "gross_aep_gwh": 60.489678688387286,
+    "net_aep_gwh": 51.14609595306188,
+    "wake_loss_pct": 15.446573593916565,
+    "capacity_factor": 18.80385001105224,
+    "turbine_losses": [
+      {
+        "idx": 0,
+        "wake_loss_pct": 2.586800401057258,
+        "dominant_source": 7
+      },
+      {
+        "idx": 1,
+        "wake_loss_pct": 22.003662294343997,
+        "dominant_source": 6
+      },
+      {
+        "idx": 2,
+        "wake_loss_pct": 0.4994191460245591,
+        "dominant_source": 6
+      },
+      {
+        "idx": 3,
+        "wake_loss_pct": 30.39767184164099,
+        "dominant_source": 5
+      },
+      {
+        "idx": 4,
+        "wake_loss_pct": 0.9988382920491047,
+        "dominant_source": 8
+      },
+      {
+        "idx": 5,
+        "wake_loss_pct": 16.516108425203313,
+        "dominant_source": 4
+      },
+      {
+        "idx": 6,
+        "wake_loss_pct": 16.516108610059522,
+        "dominant_source": 2
+      },
+      {
+        "idx": 7,
+        "wake_loss_pct": 30.517719434437137,
+        "dominant_source": 6
+      },
+      {
+        "idx": 8,
+        "wake_loss_pct": 18.98283390043323,
+        "dominant_source": 4
+      }
+    ]
+  },
+  "improvement": {
+    "aep_improvement_pct": -0.5041001315341244,
+    "additional_aep_gwh": -0.2591338309566563,
+    "loss_reduction_pct": -2.8524991849757426
+  }
+}

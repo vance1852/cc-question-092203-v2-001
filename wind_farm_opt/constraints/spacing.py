@@ -136,14 +136,18 @@ def enforce_min_spacing(
         for k in range(n):
             if not boundary.contains_point(positions[k]):
                 positions[k] = boundary.project_to_boundary(positions[k])
-                perturbation = rng.uniform(-5.0, 5.0, 2)
-                positions[k] += perturbation
-                if not boundary.contains_point(positions[k]):
-                    positions[k] = boundary.project_to_boundary(positions[k])
+                # 投影点位于边界上，尝试向内扰动，为后续推挤留出余地
+                for _ in range(8):
+                    candidate = positions[k] + rng.uniform(-5.0, 5.0, 2)
+                    if boundary.contains_point(candidate):
+                        positions[k] = candidate
+                        break
 
     valid, _ = check_min_spacing(positions, min_distance)
     inside = boundary.contains_all(positions)
     if not (valid and inside.all()):
-        raise RuntimeError("无法通过调整满足间距和边界约束")
+        raise RuntimeError(
+            f"在 {max_iterations} 次迭代内无法同时满足间距与边界约束"
+        )
 
     return positions

@@ -59,6 +59,17 @@ class SiteBoundary:
             area += x[i] * y[j] - x[j] * y[i]
         return float(abs(area) / 2.0)
 
+    @property
+    def perimeter(self) -> float:
+        """多边形周长 (m)。"""
+        verts = self.vertices
+        n = len(verts)
+        length = 0.0
+        for i in range(n):
+            j = (i + 1) % n
+            length += float(np.linalg.norm(verts[j] - verts[i]))
+        return length
+
     def contains_point(
         self,
         point: np.ndarray,
@@ -245,6 +256,55 @@ class SiteBoundary:
                 raise RuntimeError(f"无法在场地内采样到第 {i+1} 个点")
 
         return points
+
+    def try_sample_points(
+        self,
+        n_points: int,
+        rng: Optional[np.random.Generator] = None,
+        max_total_attempts: Optional[int] = None,
+    ) -> np.ndarray:
+        """在多边形内尽力随机采样，预算耗尽时返回已采到的点。
+
+        与 :meth:`sample_random_points` 不同，本方法使用**全局**尝试预算，
+        预算耗尽不抛异常，而是返回少于 ``n_points`` 的结果，便于调用方
+        在统一预算下决定重试或放弃。
+
+        Parameters
+        ----------
+        n_points : int
+            期望采样的点数
+        rng : Optional[np.random.Generator]
+            随机数生成器
+        max_total_attempts : Optional[int]
+            拒绝采样的总尝试次数上限；None 时取 ``100 * n_points``
+
+        Returns
+        -------
+        np.ndarray
+            实际采到的点，形状为 (M, 2)，``M <= n_points``
+        """
+        if rng is None:
+            rng = np.random.default_rng()
+        if max_total_attempts is None:
+            max_total_attempts = 100 * max(n_points, 1)
+
+        x_min, x_max = self.x_min, self.x_max
+        y_min, y_max = self.y_min, self.y_max
+
+        points: list[np.ndarray] = []
+        for _ in range(max_total_attempts):
+            if len(points) >= n_points:
+                break
+            pt = np.array([
+                rng.uniform(x_min, x_max),
+                rng.uniform(y_min, y_max),
+            ])
+            if self.contains_point(pt):
+                points.append(pt)
+
+        if points:
+            return np.array(points, dtype=np.float64)
+        return np.zeros((0, 2), dtype=np.float64)
 
 
 def create_rectangular_boundary(
