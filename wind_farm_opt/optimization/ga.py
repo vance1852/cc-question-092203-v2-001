@@ -6,10 +6,19 @@ from typing import Callable, Optional
 import numpy as np
 
 from ..constraints.boundary import SiteBoundary
+from ..constraints.feasibility import (
+    AttemptBudget,
+    FeasibilityError,
+    assert_request_feasible,
+    build_feasible_layout,
+    default_fill_budget,
+    default_repair_budget,
+    repair_layout,
+    validate_layout,
+)
 from ..constraints.spacing import (
     check_min_spacing,
     compute_min_spacing_from_diameters,
-    enforce_min_spacing,
 )
 
 
@@ -37,6 +46,8 @@ class GAConfig:
         最小间距倍数（相对于转子直径）
     penalty_factor : float
         约束违反惩罚因子
+    layout_attempt_budget : Optional[int]
+        生成/修复单个初始布局所共享的尝试预算；None 时使用默认值
     seed : Optional[int]
         随机种子
     """
@@ -50,6 +61,7 @@ class GAConfig:
     tournament_size: int = 3
     min_spacing_multiple: float = 5.0
     penalty_factor: float = 1e6
+    layout_attempt_budget: Optional[int] = None
     seed: Optional[int] = None
 
 
@@ -151,32 +163,21 @@ class GeneticAlgorithm:
         return population
 
     def _generate_valid_layout(self) -> np.ndarray:
-        """生成一个满足约束的初始布局。"""
-        max_attempts = 100
+        """生成一个满足约束的初始布局。
 
-        for _ in range(max_attempts):
-            try:
-                positions = self.boundary.sample_random_points(
-                    self.n_turbines, self.rng, max_attempts=50
-                )
-                valid, _ = check_min_spacing(positions, self.min_spacing)
-                if valid:
-                    return positions
-            except RuntimeError:
-                continue
-
-            try:
-                positions = self.boundary.sample_random_points(
-                    self.n_turbines, self.rng, max_attempts=50
-                )
-                positions = enforce_min_spacing(
-                    positions, self.min_spacing, self.boundary, self.rng
-                )
-                return positions
-            except RuntimeError:
-                continue
-
-        raise RuntimeError("无法生成满足约束的初始布局")
+        与规则布局共用同一套终止语义：统一尝试预算 + 终态校验，
+        失败时抛出 :class:`FeasibilityError`，绝不返回部分布局。
+        """
+        budget = self.config.layout_attempt_budget
+        if budget is None:
+            budget = default_fill_budget(self.n_turbines)
+        return build_feasible_layout(
+            self.boundary,
+            self.n_turbines,
+            self.min_spacing,
+            rng=self.rng,
+            attempt_budget=budget,
+        )
 
     def _compute_penalty(self, positions_flat: np.ndarray) -> float:
         """计算约束违反惩罚。"""
@@ -255,25 +256,31 @@ class GeneticAlgorithm:
         return mutated
 
     def _repair(self, individual: np.ndarray) -> np.ndarray:
-        """修复违反约束的个体。"""
-        positions = individual.reshape(self.n_turbines, 2)
+        """修复违反约束的个体。
+
+        修复与随机补点共享同一套尝试预算语义；修复失败时回退到重新
+        生成一个可行布局，保证返回的个体一定通过边界与间距校验，
+        不会把无效布局当作有效个体留在种群中。
+        """
+        positions = individual.reshape(self.n_turbines, 2).copy()
 
         for i in range(self.n_turbines):
             if not self.boundary.contains_point(positions[i]):
                 positions[i] = self.boundary.project_to_boundary(positions[i])
 
-        valid, _ = check_min_spacing(positions, self.min_spacing)
-        inside = self.boundary.contains_all(positions).all()
+        report = validate_layout(self.boundary, positions, self.min_spacing)
+        if report.feasible:
+            return positions.flatten()
 
-        if not (valid and inside):
-            try:
-                positions = enforce_min_spacing(
-                    positions, self.min_spacing, self.boundary, self.rng
-                )
-            except RuntimeError:
-                pass
-
-        return positions.flatten()
+        budget = AttemptBudget(default_repair_budget(self.n_turbines))
+        try:
+            positions = repair_layout(
+                self.boundary, positions, self.min_spacing, self.rng, budget
+            )
+            return positions.flatten()
+        except FeasibilityError:
+            # 修复预算耗尽：回退到重新生成一个可行布局
+            return self._generate_valid_layout().flatten()
 
     def optimize(self, verbose: bool = True) -> OptimizeResult:
         """执行优化。
@@ -292,6 +299,9 @@ class GeneticAlgorithm:
         max_gen = self.config.max_generations
 
         n_elite = max(1, int(pop_size * self.config.elite_ratio))
+
+        # 搜索前明显无解判断：与规则布局共用同一套可行性门禁
+        assert_request_feasible(self.boundary, self.n_turbines, self.min_spacing)
 
         if verbose:
             print(f"\n=== 遗传算法优化开始 ===")
@@ -359,6 +369,16 @@ class GeneticAlgorithm:
             print(f"优化完成!")
             print(f"最优净AEP: {self._best_fitness/1e3:.2f} GWh")
             print(f"找到最优解的代数: {self._best_generation}")
+
+        # 成功返回前的终态校验：最优布局必须通过边界与间距检查
+        final_report = validate_layout(
+            self.boundary,
+            self._best_positions,
+            self.min_spacing,
+            n_turbines=self.n_turbines,
+        )
+        if not final_report.feasible:
+            raise FeasibilityError(final_report)
 
         return OptimizeResult(
             best_positions=self._best_positions.copy(),

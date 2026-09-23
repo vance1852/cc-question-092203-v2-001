@@ -786,6 +786,8 @@ def main() -> int:
     cli._min_turbines = args.min_turbines
     cli._max_turbines = args.max_turbines
 
+    from .constraints.feasibility import FeasibilityError
+
     try:
         cli.run_full_analysis(
             run_baseline=True,
@@ -796,6 +798,10 @@ def main() -> int:
             save=True,
         )
         return 0
+    except FeasibilityError as e:
+        # 布局不可行：打印结构化报告（容量、可用面积、首要违规原因）
+        print(f"\n布局不可行，已终止:\n{e}", file=sys.stderr)
+        return 2
     except Exception as e:
         print(f"\n错误: {e}", file=sys.stderr)
         import traceback

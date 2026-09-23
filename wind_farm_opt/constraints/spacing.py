@@ -22,19 +22,25 @@ def check_min_spacing(
         - 是否所有间距都满足要求
         - 不满足要求的风机对索引数组，形状为 (M, 2)，M 为违规对数
     """
+    positions = np.asarray(positions, dtype=np.float64)
     n = positions.shape[0]
-    violations = []
+    if n < 2:
+        return True, np.zeros((0, 2), dtype=int)
 
-    for i in range(n):
-        for j in range(i + 1, n):
-            dist = np.linalg.norm(positions[i] - positions[j])
-            if dist < min_distance:
-                violations.append([i, j])
+    violations = []
+    chunk = 512
+    for start in range(0, n, chunk):
+        end = min(start + chunk, n)
+        diff = positions[start:end, None, :] - positions[None, :, :]
+        dist = np.linalg.norm(diff, axis=2)
+        for ii in range(start, end):
+            bad = np.flatnonzero(dist[ii - start, :ii] < min_distance)
+            for j in bad:
+                violations.append([int(j), ii])
 
     if violations:
         return False, np.array(violations, dtype=int)
-    else:
-        return True, np.zeros((0, 2), dtype=int)
+    return True, np.zeros((0, 2), dtype=int)
 
 
 def compute_min_spacing_from_diameters(
@@ -71,14 +77,9 @@ def compute_pairwise_distances(positions: np.ndarray) -> np.ndarray:
     np.ndarray
         距离矩阵，形状为 (N, N)，对角线为 0
     """
-    n = positions.shape[0]
-    dist = np.zeros((n, n), dtype=np.float64)
-    for i in range(n):
-        for j in range(i + 1, n):
-            d = np.linalg.norm(positions[i] - positions[j])
-            dist[i, j] = d
-            dist[j, i] = d
-    return dist
+    positions = np.asarray(positions, dtype=np.float64)
+    diff = positions[:, None, :] - positions[None, :, :]
+    return np.linalg.norm(diff, axis=2)
 
 
 def enforce_min_spacing(
@@ -90,7 +91,10 @@ def enforce_min_spacing(
 ) -> np.ndarray:
     """尝试通过移动风机来满足最小间距约束。
 
-    当有风机对间距不足时，将它们沿连线方向推开。
+    当有风机对间距不足时，将它们沿连线方向推开。与随机补点共享同一套
+    尝试预算语义：迭代次数即预算，预算耗尽且校验仍不通过时抛出
+    :class:`~wind_farm_opt.constraints.feasibility.FeasibilityError`
+    （``RuntimeError`` 的子类），绝不返回带违规的布局。
 
     Parameters
     ----------
@@ -103,47 +107,22 @@ def enforce_min_spacing(
     rng : Optional[np.random.Generator]
         随机数生成器
     max_iterations : int
-        最大迭代次数
+        最大迭代次数（修复尝试预算）
 
     Returns
     -------
     np.ndarray
-        调整后的风机位置
+        调整后的风机位置，保证通过边界与间距校验
+
+    Raises
+    ------
+    FeasibilityError
+        预算耗尽仍无法满足约束时抛出，报告中包含首要违规原因
     """
+    from .feasibility import AttemptBudget, repair_layout
+
     if rng is None:
         rng = np.random.default_rng()
 
-    positions = positions.copy()
-    n = positions.shape[0]
-
-    for _ in range(max_iterations):
-        valid, violations = check_min_spacing(positions, min_distance)
-        if valid:
-            break
-
-        for i, j in violations:
-            vec = positions[j] - positions[i]
-            dist = np.linalg.norm(vec)
-            if dist < 1e-12:
-                vec = rng.standard_normal(2)
-                dist = np.linalg.norm(vec)
-            vec_norm = vec / dist
-
-            push = (min_distance - dist) / 2.0 + 1e-6
-            positions[i] -= vec_norm * push
-            positions[j] += vec_norm * push
-
-        for k in range(n):
-            if not boundary.contains_point(positions[k]):
-                positions[k] = boundary.project_to_boundary(positions[k])
-                perturbation = rng.uniform(-5.0, 5.0, 2)
-                positions[k] += perturbation
-                if not boundary.contains_point(positions[k]):
-                    positions[k] = boundary.project_to_boundary(positions[k])
-
-    valid, _ = check_min_spacing(positions, min_distance)
-    inside = boundary.contains_all(positions)
-    if not (valid and inside.all()):
-        raise RuntimeError("无法通过调整满足间距和边界约束")
-
-    return positions
+    budget = AttemptBudget(max_iterations)
+    return repair_layout(boundary, positions, min_distance, rng, budget)
